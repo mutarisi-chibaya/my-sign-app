@@ -1,0 +1,7 @@
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.2); /* Emerald color with low opacity */
+  border-radius: 10px;
+}
