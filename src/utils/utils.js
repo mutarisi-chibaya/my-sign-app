@@ -1,30 +1,40 @@
 import Tesseract from 'tesseract.js';
 
 /**
- * 1. Process Typed Text
- * Simple passthrough for now, but can be used for text sanitization or 
- * mapping slang to official sign language words.
+ * 1. Process Text/Speech to Sign (The Bridge to Python)
+ * Now handles translating Native Languages to English Glosses.
  */
-export const processTextToSign = async (text) => {
-  // 1. Remove special characters so "Hello!" becomes "Hello"
-  // 2. Trim extra whitespace
-  // 3. This ensures when the Model splits by space, it doesn't get empty strings
-  const cleanText = text.replace(/[^a-zA-Z0-9\s]/g, "").trim();
-  return cleanText;
+export const processTextToSign = async (text, fromLang = 'en') => {
+  // If it's already English, we just clean it up locally
+  if (fromLang === 'en') {
+    return text.replace(/[^a-zA-Z0-9\s]/g, "").trim().toUpperCase();
+  }
+
+  // If it's Shona, Zulu, etc., we send it to our Python Backend for Llama 3.3 to Gloss
+  try {
+    const response = await fetch('http://127.0.0.1:8000/translate-speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        text: text, 
+        from_lang: fromLang 
+      })
+    });
+    
+    const data = await response.json();
+    return data.gloss; // Returns "WANT EAT MEAT"
+  } catch (error) {
+    console.error("Translation Error:", error);
+    return text.toUpperCase(); // Fallback to raw text if backend is down
+  }
 };
 
 /**
  * 2. Process Uploaded Image (OCR)
- * Extracts text from an image file using Tesseract.js.
  */
 export const processImageToSign = async (imageFile) => {
   try {
-    const { data: { text } } = await Tesseract.recognize(
-      imageFile,
-      'eng'
-    );
-
-    // Clean OCR artifacts: keep only letters, numbers, and spaces
+    const { data: { text } } = await Tesseract.recognize(imageFile, 'eng');
     return text.replace(/[^a-zA-Z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
   } catch (error) {
     console.error("OCR Error:", error);
@@ -34,17 +44,16 @@ export const processImageToSign = async (imageFile) => {
 
 /**
  * 3. Speech Recognition (Web Speech API)
- * Listens to microphone and returns text stream to the XBot via the onResult callback.
  */
-// In your utils.js
-let recognition; // Keep a reference outside the function
-
-// utils.js logic
-export const startSpeechRecognition = (onResult) => {
+export const startSpeechRecognition = (onResult, langCode = 'en-US') => {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) return;
+  if (!SpeechRecognition) {
+    alert("Speech Recognition not supported in this browser.");
+    return;
+  }
 
   const recognition = new SpeechRecognition();
+  recognition.lang = langCode; // <--- Uses the code from the Dropdown (e.g., 'sn-ZW')
   recognition.continuous = true;
   recognition.interimResults = true;
 
@@ -53,12 +62,11 @@ export const startSpeechRecognition = (onResult) => {
     for (let i = event.resultIndex; i < event.results.length; ++i) {
       finalTranscript += event.results[i][0].transcript;
     }
-    // This sends the full string to our liveTranscript.current
     onResult(finalTranscript.trim()); 
   };
 
   recognition.start();
-  window._recognition = recognition; // Simple global ref for the stop function
+  window._recognition = recognition; 
 };
 
 export const stopSpeechRecognition = () => {
@@ -67,80 +75,46 @@ export const stopSpeechRecognition = () => {
   }
 };
 
-/**
- * Utility functions for Sign Language Processing
- * Handles Alphabet, Number, and Gloss (Word) Recognition
- */
-
-// --- socketUtils.js ---
+// --- WebSocket Utilities (Sign-to-Text) ---
 
 let socket = null;
 
-/**
- * Initialize the WebSocket connection based on the mode
- * @param {String} mode - 'alpha', 'num', or 'glosses'
- * @param {Function} onResult - Callback function for when AI returns data
- */
 export const initSignSocket = (mode, onResult) => {
-  // Close existing socket if switching modes
   if (socket) socket.close();
 
-  // Connect to the FastAPI WebSocket endpoint
   socket = new WebSocket(`ws://localhost:8000/ws/translate/${mode}`);
-  window._socket =socket;
-  socket.onopen = () => console.log(`🚀 Connected to AI Stream: ${mode}`);
+  window._socket = socket;
   
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    console.log("📡 utils.js received data package:", data);
-    onResult(data); // Send result back to React component
+    onResult(data); 
   };
 
+  socket.onopen = () => console.log(`🚀 Connected to AI Stream: ${mode}`);
   socket.onerror = (err) => console.error("Socket Error:", err);
   socket.onclose = () => console.log("🔌 AI Stream Disconnected");
 };
 
-/**
- * Send a batch of frames via the open socket
- * @param {Array} frames - Array of Blobs (Binary) or Base64
- */
 export const sendFrameBatch = (frames) => {
-  // 1. Safety Check: Don't send if the array is empty
   if (!frames || frames.length === 0) return;
 
-  // 2. State Check: 1 means OPEN. 0 means CONNECTING.
   if (socket && socket.readyState === WebSocket.OPEN) {
-    const payload = JSON.stringify({ frames: frames }); 
-    socket.send(payload);
-    console.log(`🚀 Sent batch of ${frames.length} to AI`);
+    socket.send(JSON.stringify({ frames: frames }));
   } 
-  else if (socket && socket.readyState === WebSocket.CONNECTING) {
-    // This is the "State: 0" you saw. We just wait for the next interval.
-    console.warn("⏳ Socket still connecting... skipping this batch.");
-  }
-  else {
-    // This is State: 2 (CLOSING) or 3 (CLOSED)
-    console.error("❌ Socket is closed or dead. State:", socket?.readyState);
+};
+
+export const finalizeSignSentence = (text, lang) => {
+  if (window._socket && window._socket.readyState === WebSocket.OPEN) {
+    const payload = {
+      command: "FINALIZE_SENTENCE",
+      history: text,
+      target_lang: lang // <--- Now uses the selected language for the output!
+    };
+    window._socket.send(JSON.stringify(payload));
   }
 };
 
 // Cleanup function for when component unmounts
 export const disconnectSocket = () => {
   if (socket) socket.close();
-};
-
-export const finalizeSignSentence = (history) => {
-  console.log("🧠 Finalizing sentence with history:", history);
-  if (window._socket && window._socket.readyState === WebSocket.OPEN) {
-    const payload = {
-      command: "FINALIZE_SENTENCE",
-      history: history,
-      target_lang: 'en' // Hardcoded to English for now
-    };
-    
-    window._socket.send(JSON.stringify(payload));
-    console.log("🧠 Polishing request sent for:", history);
-  } else {
-    console.error("❌ Socket not open. Cannot polish sentence.");
-  }
 };

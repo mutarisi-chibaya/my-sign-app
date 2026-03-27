@@ -14,7 +14,7 @@ const DuoMode = () => {
   const { isDarkMode } = useOutletContext(); 
   
   const { state, refs, actions } = useDuoMode();
-  const { activeMode,liveText, signerStatus, signerText, speakerStatus, speakerText, manualText, replayTrigger,accuracy } = state;
+  const { activeMode,liveText,glossText ,signerStatus, signerText, speakerStatus, speakerText, manualText, replayTrigger,accuracy } = state;
   
   useEffect(() => {
     let interval;
@@ -190,7 +190,7 @@ const DuoMode = () => {
                     scale={1}
                     position={[0, -1.2, 0]}
                     status={speakerStatus === 'idle' ? 'success' : speakerStatus}
-                    transcript={speakerText} 
+                    transcript={glossText} 
                     replayTrigger={replayTrigger} 
                   />
                   <OrbitControls makeDefault enableZoom={false} />

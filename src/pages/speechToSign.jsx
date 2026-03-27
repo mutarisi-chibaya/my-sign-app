@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom'; // <--- ADDED useOutletContext
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import { 
@@ -13,8 +13,16 @@ import { useSpeechToSign } from '../hooks/useSpeechToSign';
 
 const SpeechToSign = () => {
   const navigate = useNavigate();
+  // We pull the selectedLang here to display it in the UI
+  const { selectedLang } = useOutletContext(); 
   const { state, refs, actions } = useSpeechToSign();
-  const { status, transcript, inputText, liveText, replayTrigger } = state;
+  const { status, transcript,originalText ,inputText, liveText, replayTrigger } = state;
+
+  // Helper to get the full name of the language for the UI display
+  const getLangName = (code) => {
+    const names = { en: 'English', zu: 'isiZulu', sn: 'chiShona', xh: 'isiXhosa', af: 'Afrikaans' };
+    return names[code] || 'English';
+  };
 
   const getBorderColor = () => {
     switch (status) {
@@ -36,10 +44,11 @@ const SpeechToSign = () => {
           className="flex items-center gap-3 px-4 py-2 bg-slate-900/50 hover:bg-slate-800 border border-white/5 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-all group"
         >
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-          Back
+          Back to DuoMode
         </button>
         
-        <div className="hidden md:block">
+        <div className="hidden md:flex items-center gap-4">
+          <div className="h-8 w-[1px] bg-white/5" />
           <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">Speech Engine v2.0</span>
         </div>
       </div>
@@ -69,7 +78,7 @@ const SpeechToSign = () => {
               <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-30">
                 <div className="flex flex-col items-center gap-3">
                     <Loader2 className="w-12 h-12 text-blue-400 animate-spin" />
-                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Analyzing Input...</span>
+                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Translating {getLangName(selectedLang)}...</span>
                 </div>
               </div>
             )}
@@ -77,7 +86,7 @@ const SpeechToSign = () => {
             <div className="absolute bottom-8 left-8 flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full ${status === 'recording' ? 'bg-red-500 animate-pulse' : 'bg-blue-500'}`} />
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
-                {status === 'recording' ? 'Voice Engine Active' : 'Neural Link Standby'}
+                {status === 'recording' ? `${getLangName(selectedLang)} Mic Active` : 'Neural Link Standby'}
               </span>
             </div>
           </div>
@@ -97,7 +106,7 @@ const SpeechToSign = () => {
                 <form onSubmit={actions.handleSendText} className="flex-grow flex items-center">
                   <input 
                     type="text" 
-                    placeholder="Type to translate to sign language..."
+                    placeholder={`Type in ${getLangName(selectedLang)}...`}
                     value={inputText}
                     onChange={(e) => actions.setInputText(e.target.value)}
                     className="bg-transparent border-none outline-none text-white text-sm px-2 w-full placeholder:text-slate-600"
@@ -121,7 +130,7 @@ const SpeechToSign = () => {
               >
                 {status === 'recording' ? <MicOff size={18} /> : <Mic size={18} />}
                 <span className="tracking-[0.1em] text-[10px] uppercase">
-                  {status === 'recording' ? "Stop Recording" : "Voice Input"}
+                  {status === 'recording' ? "Finalize" : "Record"}
                 </span>
               </button>
 
@@ -148,9 +157,9 @@ const SpeechToSign = () => {
             <div className="flex-grow flex flex-col justify-center">
               <div className={`text-3xl md:text-4xl font-bold text-white leading-tight transition-all duration-300 ${status === 'processing' ? 'opacity-20 blur-md' : 'opacity-100'}`}>
                 {status === 'recording' ? (
-                   <span>{liveText || "Listening..."}</span>
+                   <span>{liveText || `Listening to ${getLangName(selectedLang)}...`}</span>
                 ) : (
-                   transcript ? `"${transcript}"` : <span className="text-slate-800 italic text-2xl">Awaiting input...</span>
+                   originalText ? `"${originalText}"` : <span className="text-slate-800 italic text-2xl">Awaiting input...</span>
                 )}
               </div>
             </div>
@@ -167,7 +176,7 @@ const SpeechToSign = () => {
                
                <div className="flex items-center gap-2">
                  <div className={`w-2 h-2 rounded-full ${status === 'success' ? 'bg-blue-500 shadow-[0_0_10px_#3b82f6]' : 'bg-slate-700'}`} />
-                 <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">NLP Engine</span>
+                 <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Llama 3.3 Active</span>
                </div>
             </div>
           </div>
@@ -179,7 +188,7 @@ const SpeechToSign = () => {
               <h3 className="text-xs font-black uppercase tracking-[0.2em]">Bridge Mode</h3>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
-              3D Render pipeline active. Animation blending is driven by the <code className="text-blue-400 px-1 bg-blue-400/10 rounded">transcript</code> stream.
+              3D Render pipeline active. Animation blending is driven by the <code className="text-blue-400 px-1 bg-blue-400/10 rounded">ASL_GLOSS</code> stream from the Llama 3.3 backbone.
             </p>
           </div>
         </div>

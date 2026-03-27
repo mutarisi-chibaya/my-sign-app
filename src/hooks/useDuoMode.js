@@ -9,8 +9,10 @@ import {
   disconnectSocket,
   finalizeSignSentence
 } from '../utils/utils';
+import { useOutletContext } from 'react-router-dom';
 
 export const useDuoMode = () => {
+  const { selectedLang } = useOutletContext();
   const [liveText, setLiveText] = useState("");
   const [signerStatus, setSignerStatus] = useState('idle');
   const [signerText, setSignerText] = useState("");
@@ -18,6 +20,7 @@ export const useDuoMode = () => {
   const [speakerStatus, setSpeakerStatus] = useState('idle');
   const [speakerText, setSpeakerText] = useState("");
   const [manualText, setManualText] = useState(""); 
+  const [glossText, setGlossText] = useState("");
   const [replayTrigger, setReplayTrigger] = useState(0);
   const [activeMode, setActiveMode] = useState('alpha');
   const isSocketReady = useRef(false);
@@ -26,6 +29,25 @@ export const useDuoMode = () => {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const frameBuffer = useRef([]);
+
+   const speakText = useCallback((text) => {
+    if (!text) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Map your codes to browser voices
+    const langMap = {
+      'en': 'en-US',
+      'zu': 'zu-ZA',
+      'af': 'af-ZA',
+      'xh': 'xh-ZA',
+      'sn': 'sn-ZW'
+    };
+    
+    utterance.lang = langMap[selectedLang] || 'en-US';
+    utterance.rate = 0.9;
+    window.speechSynthesis.speak(utterance);
+  }, [selectedLang]);
 
   // --- WebSocket & Translation Logic ---
   useEffect(() => {
@@ -36,13 +58,13 @@ export const useDuoMode = () => {
         // --- A. NEW: HANDLE POLISHED LLM RESULT ---
         if (result.type === "final_result") {
           console.log("✨ DuoMode Polished Sentence:", result.data.translated);
-          
+          const translatedSentence = result.data.translated;
           // Overwrite the messy glosses with the beautiful sentence
-          setSignerText(result.data.translated); 
+          setSignerText(translatedSentence); 
           setAccuracy(100);
           
           // Trigger TTS for the polished sentence automatically if you like
-          speakText(result.data.translated);
+          speakText(translatedSentence);
 
           // Now we are truly done
           setSignerStatus('idle');
@@ -90,7 +112,7 @@ export const useDuoMode = () => {
         disconnectSocket();
       };
     }
-  }, [activeMode, signerStatus === 'idle']);
+  }, [activeMode, signerStatus === 'idle',speakText]);
 
   // --- Frame Capture Logic ---
   const captureFrame = useCallback((frameCount = 20) => {
@@ -132,41 +154,95 @@ export const useDuoMode = () => {
   }, []);
 
   // --- Text-to-Speech (TTS) ---
-  const speakText = (text) => {
-    if (!text) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
-  };
+ 
 
   // --- Speaker Side Handlers (Mic, Input, Image) ---
   const handleToggleSpeakerMic = async () => {
+    // 1. STOP RECORDING CASE
     if (speakerStatus === 'recording') {
       stopSpeechRecognition();
-      setSpeakerText(liveText || "");
-      setSpeakerStatus('idle');
-    } else {
+      
+      if (liveText) {
+        // Show exactly what was said (e.g., "Unjani") in the UI
+        setSpeakerText(liveText); 
+        setSpeakerStatus('processing');
+        
+        try {
+          // Translate the native speech into English Glosses for the Avatar
+          const result = await processTextToSign(liveText, selectedLang);
+          
+          // This is what we pass to the XBot component
+          setGlossText(result); 
+          setSpeakerStatus('success');
+          
+          // Optional: Trigger text-to-speech so the user hears the confirmation
+          speakText(liveText); 
+        } catch (error) {
+          console.error("Translation Error:", error);
+          setSpeakerStatus('error');
+        }
+      } else {
+        setSpeakerStatus('idle');
+      }
+    } 
+    
+    // 2. START RECORDING CASE
+    else {
+      // Reset states for a fresh session
       setLiveText("");
+      setGlossText("");
       setSpeakerText("");
       setSpeakerStatus('recording');
+
+      // Map your short codes (zu, sn) to browser locales (zu-ZA, sn-ZW)
+      const langMap = {
+        'en': 'en-US',
+        'zu': 'zu-ZA',
+        'af': 'af-ZA',
+        'xh': 'xh-ZA',
+        'sn': 'sn-ZW'
+      };
+
       try {
-        await startSpeechRecognition((text) => setLiveText(text));
+        // This triggers the browser's native speech-to-text
+        await startSpeechRecognition((text) => {
+          setLiveText(text); // Updates the "Listening..." text in the UI
+        }, langMap[selectedLang] || 'en-US'); 
+        
       } catch (error) {
+        console.error("Mic Start Error:", error);
         setSpeakerStatus('error');
       }
     }
   };
 
   const handleManualSend = async () => {
+    // 1. Validation: Don't send empty text
     if (!manualText.trim()) return;
+
+    const textToProcess = manualText;
+    
+    // 2. UI Update: Show the typed word in the speaker's bubble
+    setSpeakerText(textToProcess); 
+    setManualText(""); // Clear the input field for the next message
     setSpeakerStatus('processing');
+
     try {
-      const result = await processTextToSign(manualText);
-      setSpeakerText(result);
-      setManualText("");
-      setSpeakerStatus('idle');
+      // 3. THE BRIDGE: Convert the typed native word into English Glosses
+      // result will be "HOW YOU" if you typed "Unjani"
+      const result = await processTextToSign(textToProcess, selectedLang);
+      
+      // 4. XBOT UPDATE: Send only the English Gloss to the avatar
+      setGlossText(result); 
+      setSpeakerStatus('success');
+
+      // Optional: Make the computer speak the typed text aloud
+      if (typeof speakText === 'function') {
+        speakText(textToProcess);
+      }
+      
     } catch (error) {
+      console.error("Manual Send Translation Error:", error);
       setSpeakerStatus('error');
     }
   };
@@ -201,10 +277,10 @@ export const useDuoMode = () => {
       setSignerStatus('processing');
 
       // 2. Since DuoMode uses a string 'signerText', we convert it back to an array for the backend
-      const historyArray = signerText.trim().split(" ");
+      const historyArray = signerText.trim().split(" ").filter(word => word !== "");
       
       // 3. Request the polish
-      finalizeSignSentence(historyArray);
+      finalizeSignSentence(historyArray,selectedLang);
       
       console.log("🧠 DuoMode: Requesting final polish for:", historyArray);
 
@@ -218,7 +294,7 @@ export const useDuoMode = () => {
     
     frameBuffer.current = [];
     setAccuracy(0);
-  }, [signerText, activeMode]);
+  }, [signerText, activeMode,selectedLang]);
 
   const handleModeChange = useCallback((newMode) => {
     // Stay in current state but wipe buffer so old frames don't leak
@@ -235,6 +311,7 @@ export const useDuoMode = () => {
     state: { 
       liveText, 
       signerStatus, 
+      glossText,
       accuracy, 
       signerText, 
       speakerStatus, 

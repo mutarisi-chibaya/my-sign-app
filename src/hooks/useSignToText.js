@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { initSignSocket, sendFrameBatch, disconnectSocket,finalizeSignSentence } from '../utils/utils';
+import { useOutletContext } from 'react-router-dom';
 
 export const useSignToText = (activeMode, setActiveMode) => {
+  const { selectedLang } = useOutletContext();
   const [status, setStatus] = useState('idle');
   const [detectedHistory, setDetectedHistory] = useState([]);
   const [accuracy, setAccuracy] = useState(0);
@@ -33,14 +35,15 @@ export const useSignToText = (activeMode, setActiveMode) => {
     if (status === 'idle') {
       frameBuffer.current = []; 
       setAccuracy(0);
+      setDetectedHistory([]);
       setStatus('recording');
     } else {
       if (detectedHistory.length > 0) {
         // 1. Tell the UI we are waiting for the final result
         setStatus('processing'); 
-        
+        const rawSentence = detectedHistory.join("").trim();
         // 2. Send the data to the backend
-        finalizeSignSentence(detectedHistory);
+        finalizeSignSentence(rawSentence, selectedLang);
         
         // NOTE: We DO NOT call disconnectSocket() here anymore!
         // We wait for the 'onmessage' in the useEffect to receive the data 
@@ -51,7 +54,7 @@ export const useSignToText = (activeMode, setActiveMode) => {
         disconnectSocket();
       }
     }
-  }, [status, detectedHistory]);
+  }, [status, detectedHistory,selectedLang]);
 
   // --- 3. CAMERA SETUP ---
   useEffect(() => {
@@ -101,9 +104,9 @@ export const useSignToText = (activeMode, setActiveMode) => {
         // This catches the 'final_result' from your Groq/Llama backend
         if (result.type === "final_result") {
           console.log("✨ Polished Sentence Received:", result.data.translated);
-          
+          const polishedText = result.data.translated;
           // Replace the messy history list with the single clean sentence
-          setDetectedHistory([result.data.translated]); 
+          setDetectedHistory([polishedText]); 
           
           // Accuracy is 100% now that it's finalized
           setAccuracy(100);
@@ -111,6 +114,15 @@ export const useSignToText = (activeMode, setActiveMode) => {
           // Transition back to idle state now that processing is done
           setStatus('idle');
           disconnectSocket(); // Clean up the socket connection
+
+          if (window.speechSynthesis) {
+            const utterance = new SpeechSynthesisUtterance(polishedText);
+            // Map the language code for the voice engine
+            const voiceMap = { 'zu': 'zu-ZA', 'sn': 'sn-ZW', 'en': 'en-US' };
+            utterance.lang = voiceMap[selectedLang] || 'en-US';
+            window.speechSynthesis.speak(utterance);
+          }
+
           return; // Exit early; don't process this as a normal prediction
         }
 
@@ -163,7 +175,7 @@ export const useSignToText = (activeMode, setActiveMode) => {
         disconnectSocket(); // Kill the socket when switching modes or stopping
       };
     }
-  }, [activeMode, status === 'idle']); // Re-runs when mode changes or toggle starts
+  }, [activeMode, status === 'idle'],selectedLang); // Re-runs when mode changes or toggle starts
 
   const clearResults = () => {
     setDetectedHistory([]);
