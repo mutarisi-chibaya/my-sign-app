@@ -6,7 +6,8 @@ import {
   processImageToSign, 
   initSignSocket, 
   sendFrameBatch, 
-  disconnectSocket
+  disconnectSocket,
+  finalizeSignSentence
 } from '../utils/utils';
 
 export const useDuoMode = () => {
@@ -29,12 +30,29 @@ export const useDuoMode = () => {
   // --- WebSocket & Translation Logic ---
   useEffect(() => {
     if (signerStatus !== 'idle') {
-      isSocketReady.current = false; // Block frames during handshake
+      isSocketReady.current = false;
 
       initSignSocket(activeMode, (result) => {
+        // --- A. NEW: HANDLE POLISHED LLM RESULT ---
+        if (result.type === "final_result") {
+          console.log("✨ DuoMode Polished Sentence:", result.data.translated);
+          
+          // Overwrite the messy glosses with the beautiful sentence
+          setSignerText(result.data.translated); 
+          setAccuracy(100);
+          
+          // Trigger TTS for the polished sentence automatically if you like
+          speakText(result.data.translated);
+
+          // Now we are truly done
+          setSignerStatus('idle');
+          disconnectSocket();
+          return;
+        }
+
+        // --- B. EXISTING PREDICTION LOGIC ---
         isSocketReady.current = true;
 
-        // Handle collecting status — frames are still buffering on Python side
         if (result.status === 'collecting') {
           setSignerStatus(current => current === 'idle' ? 'idle' : 'recording');
           return;
@@ -47,13 +65,11 @@ export const useDuoMode = () => {
           const formattedVal = val.toLowerCase() === "space" ? " " : val;
           setSignerText(prev => {
             const separator = activeMode === 'glosses' ? " " : "";
-
-            // Only block duplicates in glosses mode
             if (activeMode === 'glosses') {
-              const lastWord = prev.trim().split(" ").pop();
+              const words = prev.trim().split(" ");
+              const lastWord = words[words.length - 1];
               if (lastWord === formattedVal.trim()) return prev;
             }
-
             return prev + formattedVal + separator;
           });
 
@@ -61,11 +77,9 @@ export const useDuoMode = () => {
           setAccuracy(rawConf > 1 ? Math.round(rawConf) : Math.round(rawConf * 100));
         }
 
-        // Always revert to recording after processing a result
         setSignerStatus(current => current === 'idle' ? 'idle' : 'recording');
       });
 
-      // ✅ FIXED: 500ms matches useSignToText — was 5000ms before
       const timer = setTimeout(() => {
         if (signerStatus !== 'idle') isSocketReady.current = true;
       }, 500);
@@ -182,15 +196,29 @@ export const useDuoMode = () => {
   };
 
   const handleStopSigner = useCallback(() => {
-    // Speak the accumulated text before stopping
     if (signerText.trim()) {
-      speakText(signerText);
+      // 1. Change status to processing so the UI shows a loader/spinner
+      setSignerStatus('processing');
+
+      // 2. Since DuoMode uses a string 'signerText', we convert it back to an array for the backend
+      const historyArray = signerText.trim().split(" ");
+      
+      // 3. Request the polish
+      finalizeSignSentence(historyArray);
+      
+      console.log("🧠 DuoMode: Requesting final polish for:", historyArray);
+
+      // We DO NOT set status to 'idle' or disconnect here. 
+      // The socket listener above will handle that when the result arrives.
+    } else {
+      // If nothing was signed, just close up shop
+      setSignerStatus('idle');
+      disconnectSocket();
     }
-    // Reset everything for the next session
+    
     frameBuffer.current = [];
     setAccuracy(0);
-    setSignerStatus('idle');
-  }, [signerText]);
+  }, [signerText, activeMode]);
 
   const handleModeChange = useCallback((newMode) => {
     // Stay in current state but wipe buffer so old frames don't leak

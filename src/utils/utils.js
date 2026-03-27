@@ -87,11 +87,12 @@ export const initSignSocket = (mode, onResult) => {
 
   // Connect to the FastAPI WebSocket endpoint
   socket = new WebSocket(`ws://localhost:8000/ws/translate/${mode}`);
-
+  window._socket =socket;
   socket.onopen = () => console.log(`🚀 Connected to AI Stream: ${mode}`);
   
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
+    console.log("📡 utils.js received data package:", data);
     onResult(data); // Send result back to React component
   };
 
@@ -126,4 +127,20 @@ export const sendFrameBatch = (frames) => {
 // Cleanup function for when component unmounts
 export const disconnectSocket = () => {
   if (socket) socket.close();
+};
+
+export const finalizeSignSentence = (history) => {
+  console.log("🧠 Finalizing sentence with history:", history);
+  if (window._socket && window._socket.readyState === WebSocket.OPEN) {
+    const payload = {
+      command: "FINALIZE_SENTENCE",
+      history: history,
+      target_lang: 'en' // Hardcoded to English for now
+    };
+    
+    window._socket.send(JSON.stringify(payload));
+    console.log("🧠 Polishing request sent for:", history);
+  } else {
+    console.error("❌ Socket not open. Cannot polish sentence.");
+  }
 };

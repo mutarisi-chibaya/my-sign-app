@@ -71,19 +71,15 @@ class engine:
 
             detected_word = result.get("word", "")
             conf = result.get("confidence", 0)
-
+            print(f"🔍 Detected: '{detected_word}' with confidence {conf:.2f}")
             # Only act if it's a real word and NOT 'READY'
             if detected_word and detected_word not in ["READY", "Unknown", ""]:
-                # Only add to buffer if it's NOT the same as the last word (Prevents "Hello Hello Hello")
-                if not self.gloss_buffer or self.gloss_buffer[-1] != detected_word:
-                    self.gloss_buffer.append(detected_word)
-
-                    # Return the SINGLE new word to React
-                    return {
-                        "prediction": detected_word,
-                        "confidence": round(conf * 100, 1),
-                        "status": "success"
-                    }
+              
+                return {
+                    "prediction": detected_word,
+                    "confidence": round(conf * 100, 1),
+                    "status": "success"
+                }
 
             # If no new word was found, tell React to wait
             return {"prediction": "...", "confidence": 0, "status": "searching"}
