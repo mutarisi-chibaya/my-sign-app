@@ -6,6 +6,8 @@ let mediaStreamSource = null;
 let analyserNode = null;
 let animFrameId = null;
 let lastAlertTime = 0;
+let frameCount = 0;
+const FRAME_SKIP = 10;
 const COOLDOWN_MS = 5000;
 
 // ✅ Correct local paths — Vite serves everything in /public from root
@@ -53,6 +55,13 @@ export const startEmergencyGuard = async (sharedStream, onDetection) => {
 
     const detect = async () => {
       if (!analyserNode || !audioContext) return;
+
+      frameCount++;
+
+      if (frameCount % FRAME_SKIP !== 0) {
+        animFrameId = requestAnimationFrame(detect);
+        return;
+      }
 
       analyserNode.getFloatTimeDomainData(buffer);
 
@@ -108,7 +117,8 @@ export const startEmergencyGuard = async (sharedStream, onDetection) => {
 
       animFrameId = requestAnimationFrame(detect);
     };
-
+    
+    frameCount = 0;
     detect();
     console.log("🛡️ YAMNet Guard Active.");
 
