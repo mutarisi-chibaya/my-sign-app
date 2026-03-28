@@ -20,7 +20,7 @@ const SIGNING_BONES = [
 ];
 
 export function Model({ status, transcript, replayTrigger, ...props }) {
-  console.log("Rendering Model with status:", status, "and transcript:", transcript)
+  
   const { scene } = useGLTF('/Michelle.glb')
   const bones = useRef({})
   
