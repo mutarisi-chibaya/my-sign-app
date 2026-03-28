@@ -30,6 +30,19 @@ export const useSpeechToSign = () => {
     'en': 'en-US', 'zu': 'zu-ZA', 'af': 'af-ZA', 'xh': 'xh-ZA', 'sn': 'sn-ZW'
   };
 
+  const clearOutput = () => {
+    setTranscript("");
+    setOriginalText("");
+    setLiveText("");
+    setInputText(""); // Optional: clear the input field too
+    setStatus('idle');
+    // If an image was selected, revoke its URL to save memory
+    if (selectedImage) {
+      URL.revokeObjectURL(selectedImage);
+      setSelectedImage(null);
+    }
+  };
+
   /**
    * CENTRAL EMERGENCY HANDLER
    * This handles the logic for both the TF.js Guard and the Manual Simulation Button.
@@ -215,6 +228,7 @@ export const useSpeechToSign = () => {
       handleImageUpload,
       handleToggleMic,
       handleReplay,
+      clearOutput,
       // Map setEmergencyAlert to our specialized handler
       setEmergencyAlert: handleEmergencyTrigger, 
       resetSystem: () => handleEmergencyTrigger(null)

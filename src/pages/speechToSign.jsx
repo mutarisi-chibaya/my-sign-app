@@ -5,7 +5,7 @@ import { OrbitControls, Html } from '@react-three/drei';
 import { 
   Mic, MicOff, Volume2, Loader2, Activity, 
   Lightbulb, Send, Image as ImageIcon, 
-  RotateCcw, ArrowLeft 
+  RotateCcw, ArrowLeft,Trash2,Circle 
 } from 'lucide-react';
 
 import { Model as Xbot } from '../../XBot';
@@ -32,7 +32,7 @@ const SpeechToSign = () => {
       case 'processing': return 'border-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.2)]';
       case 'success': return 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.2)]';
       case 'error': return 'border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.2)]';
-      default: return 'border-white/10';
+      default: return 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.2)]';
     }
   };
 
@@ -56,7 +56,7 @@ const SpeechToSign = () => {
           className="flex items-center gap-3 px-4 py-2 bg-slate-900/50 hover:bg-slate-800 border border-white/5 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-all group"
         >
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-          Back to DuoMode
+          Back
         </button>
         
         <div className="hidden md:flex items-center gap-4">
@@ -159,32 +159,36 @@ const SpeechToSign = () => {
                   </button>
                 </form>
             </div>
-
-            <div className="flex gap-4">
-              <button 
-                onClick={actions.handleToggleMic}
-                className={`flex items-center gap-4 px-8 py-4 rounded-full font-black transition-all shadow-xl ${
+          </div>
+          <div className="flex flex-row items-center justify-center gap-4">
+            <button 
+             
+              onClick={actions.handleToggleMic} 
+              
+              className={`flex items-center gap-4 px-10 py-5 rounded-full font-black transition-all shadow-xl ${
                   status === 'recording' ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-600 text-white hover:bg-blue-500'
                 }`}
-              >
-                {status === 'recording' ? <MicOff size={18} /> : <Mic size={18} />}
-                <span className="tracking-[0.1em] text-[10px] uppercase">
-                  {status === 'recording' ? "Finalize" : "Record"}
-                </span>
-              </button>
+            >
+              {status !== 'idle' ? <Square size={18} fill="currentColor" /> : <Circle size={18} />}
+              <span className="tracking-[0.2em] text-xs uppercase">
+                {status !== 'idle' ? "Stop Session" : "Start Live Stream"}
+              </span>
+            </button>
 
-              <button 
-                disabled={!transcript || status === 'processing'}
-                onClick={actions.handleReplay} 
-                className="p-4 rounded-full bg-slate-900 text-slate-400 border border-white/5 hover:text-blue-400 disabled:opacity-20 transition-all duration-300 shadow-xl"
-                title="Replay Sign & Audio"
-              >
-                <RotateCcw size={18} />
-              </button>
-            </div>
+            <button 
+              onClick={actions.clearOutput}
+              
+              className="group flex items-center gap-3 px-8 py-5 rounded-full font-black bg-slate-900 text-slate-400 border border-white/5 hover:border-white/20 hover:text-white transition-all disabled:opacity-30"
+            >
+              <Trash2 size={18} />
+              <span className="tracking-[0.2em] text-xs uppercase">Clear</span>
+            </button>
           </div>
         </div>
-
+        
+        
+        
+        
         {/* RIGHT: TRANSCRIPT DISPLAY */}
         <div className="w-full lg:flex-1 flex flex-col gap-6">
           <div className={`bg-[#0c0f16] border rounded-[3rem] p-8 flex flex-col relative shadow-2xl min-h-[350px] transition-all duration-500 ${status === 'success' ? 'border-blue-500/40' : 'border-white/5'}`}>
@@ -204,14 +208,14 @@ const SpeechToSign = () => {
             </div>
 
             <div className="mt-8 pt-8 border-t border-white/5 flex justify-between items-center">
-               <button 
-                disabled={!transcript}
-                onClick={() => actions.handleReplay()} 
-                className="flex items-center gap-3 px-6 py-3 bg-blue-500/10 text-blue-400 rounded-2xl border border-blue-500/20 hover:bg-blue-500/20 transition-all disabled:opacity-10"
-               >
-                 <Volume2 size={20} />
-                 <span className="text-[10px] font-bold uppercase tracking-widest text-xs">Audio Replay</span>
-               </button>
+              <button 
+                disabled={!transcript || status === 'processing'}
+                onClick={actions.handleReplay} 
+                className="p-4 rounded-full bg-slate-900 text-slate-400 border border-white/5 hover:text-blue-400 disabled:opacity-20 transition-all duration-300 shadow-xl"
+                title="Replay Sign & Audio"
+              >
+                <RotateCcw size={18} />
+              </button>
                
                <div className="flex items-center gap-2">
                  <div className={`w-2 h-2 rounded-full ${status === 'success' ? 'bg-blue-500 shadow-[0_0_10px_#3b82f6]' : 'bg-slate-700'}`} />
@@ -234,14 +238,14 @@ const SpeechToSign = () => {
       </div>
       </div>
       {/* DEV ONLY: TRIGGER TEST EMERGENCY */}
-      {(import.meta.env.MODE === 'development' || process.env.NODE_ENV === 'development') && (
+      {/* {(import.meta.env.MODE === 'development' || process.env.NODE_ENV === 'development') && (
         <button 
           onClick={() => actions.setEmergencyAlert("Environmental Fire Alarm")}
           className="fixed bottom-4 right-4 z-[500] p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-[10px] text-red-500 rounded-lg uppercase font-black opacity-60 hover:opacity-100 transition-all shadow-lg backdrop-blur-md"
         >
           🚨 Simulate Danger
         </button>
-      )}
+      )} */}
     </div>
   );
 };

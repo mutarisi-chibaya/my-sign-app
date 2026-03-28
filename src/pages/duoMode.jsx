@@ -235,16 +235,35 @@ const DuoMode = () => {
                 </p>
               </div>
               
+              <div className="flex items-center gap-2 shrink-0">
+              {/* ADD THE TRASH BUTTON HERE */}
               <button 
                 disabled={!speakerText || speakerStatus === 'processing'}
                 onClick={actions.handleReplay} 
-                className={`p-2.5 rounded-full transition-all duration-300 ${
-                  isDarkMode ? 'bg-white/5 text-slate-400 hover:text-blue-400' : 'bg-black/5 text-slate-500 hover:text-blue-600'
-                } disabled:opacity-20`}
+                className={`p-2.5 rounded-full transition-all duration-300 flex items-center justify-center ${
+                  isDarkMode 
+                    ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]' 
+                    : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                } disabled:opacity-20 disabled:cursor-not-allowed`}
                 title="Replay Sign & Audio"
               >
                 <RotateCcw size={18} />
               </button>
+
+              {(speakerText || liveText) && (
+                <button 
+                  onClick={actions.clearSpeakerOutput}
+                  className={`p-2.5 rounded-full transition-all ${
+                    isDarkMode ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-500 hover:bg-red-100'
+                  }`}
+                  title="Clear Speaker Output"
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
+
+              
+            </div>
             </div>
 
             <div className={`flex flex-col gap-3 p-4 rounded-[2rem] border transition-all ${isDarkMode ? 'bg-white/[0.02] border-white/5' : 'bg-white border-black/5 shadow-sm'}`}>
@@ -292,7 +311,7 @@ const DuoMode = () => {
 
         </div>
       </div>
-      {import.meta.env.MODE === 'development' && (
+      {/* {import.meta.env.MODE === 'development' && (
         <div className="fixed bottom-4 right-4 z-[1000] flex gap-2">
           <button 
             onClick={actions.simulateFire}
@@ -301,7 +320,7 @@ const DuoMode = () => {
             🚨 Test Fire Alert
           </button>
         </div>
-      )}
+      )} */}
     </div>
   );
 };

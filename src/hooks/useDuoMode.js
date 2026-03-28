@@ -346,6 +346,22 @@ export const useDuoMode = () => {
     setActiveMode(newMode);
   }, []);
 
+  const clearSignerOutput = () => {
+    setSignerText("");
+    setAccuracy(0);
+    setSignerStatus('idle');
+    // Also clear the frame buffer if they were in the middle of recording
+    frameBuffer.current = [];
+  };
+
+  const clearSpeakerOutput = () => {
+    setSpeakerText("");
+    setGlossText("");
+    setLiveText("");
+    setManualText("");
+    setSpeakerStatus('idle');
+  };
+
   return {
     state: { 
       canvasKey,
@@ -379,6 +395,8 @@ export const useDuoMode = () => {
       captureFrame,
       handleStopSigner,
       handleModeChange,
+      clearSignerOutput,
+      clearSpeakerOutput,
       simulateFire: () => handleEmergencyTrigger("Manual Test: Fire Alarm Detected"),
       resetSystem: () => handleEmergencyTrigger(null)
     }
