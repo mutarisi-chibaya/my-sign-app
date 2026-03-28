@@ -4,7 +4,6 @@ import { useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-// We match these exactly to the keys in your JSON files
 const SIGNING_BONES = [
   "mixamorigRightArm", "mixamorigRightForeArm", "mixamorigRightHand",
   "mixamorigLeftArm", "mixamorigLeftForeArm", "mixamorigLeftHand",
@@ -20,7 +19,8 @@ const SIGNING_BONES = [
   "mixamorigLeftHandPinky1", "mixamorigLeftHandPinky2", "mixamorigLeftHandPinky3"
 ];
 
-export function Model({ status, transcript,replayTrigger ,...props }) {
+export function Model({ status, transcript, replayTrigger, ...props }) {
+  console.log("Rendering Model with status:", status, "and transcript:", transcript)
   const { scene } = useGLTF('/Michelle.glb')
   const bones = useRef({})
   
@@ -28,7 +28,7 @@ export function Model({ status, transcript,replayTrigger ,...props }) {
   const [activeSignIndex, setActiveSignIndex] = useState(0)
   const frameIndex = useRef(0)
   const frameTimer = useRef(0)
-  const FRAME_DURATION = 0.1 // Matches your 5-keyframe style (~10fps)
+  const FRAME_DURATION = 0.1 
 
   useEffect(() => {
     if (!scene) return
@@ -37,8 +37,12 @@ export function Model({ status, transcript,replayTrigger ,...props }) {
     })
   }, [scene])
 
+  // --- 1. LOAD SIGNS EFFECT ---
   useEffect(() => {
-    if (!transcript || status !== 'success') {
+    // FIX: Allow 'error' status so emergency glosses load
+    const canSign = status === 'success' || status === 'error';
+    
+    if (!transcript || !canSign) {
       setCurrentQueue([])
       return
     }
@@ -50,43 +54,31 @@ export function Model({ status, transcript,replayTrigger ,...props }) {
       
       for (const word of words) {
         if (!word) continue;
-        
         let foundWord = false;
         
         try {
-          // 1. Try to fetch the full word
           const response = await fetch(`/landmarks/${word}.json`)
-          
-          // Check specifically for the JSON content type to avoid the <!doctype html error
           const contentType = response.headers.get("content-type");
           
-          if (response.ok && contentType && contentType.includes("application/json")) {
+          if (response.ok && contentType?.includes("application/json")) {
             const data = await response.json()
             loadedData.push(data)
             foundWord = true;
           } 
         } catch (err) {
-          console.warn(`Word "${word}" not found as a full sign.`)
+          console.warn(`Word "${word}" not found.`);
         }
 
-        // 2. FALLBACK: If word wasn't found, load letter by letter
         if (!foundWord) {
-          console.log(`Switching to fingerspelling for: ${word}`)
           for (const letter of word) {
             if (!/[a-z0-9]/.test(letter)) continue;
-            
             try {
               const letterResponse = await fetch(`/landmarks/${letter}.json`);
               const letterType = letterResponse.headers.get("content-type");
-
               if (letterResponse.ok && letterType?.includes("application/json")) {
                 const letterData = await letterResponse.json();
-                letterData._isFingerspell = true; // Mark this data as fingerspelling for later use if needed
+                letterData._isFingerspell = true;
                 loadedData.push(letterData);
-                // ADD THIS LOG:
-                console.log(`✅ Loaded letter: ${letter}`); 
-              } else {
-                console.error(`❌ Could not find letter file: /landmarks/${letter}.json`);
               }
             } catch (err) {
               console.error(`Error fetching letter ${letter}:`, err);
@@ -106,28 +98,27 @@ export function Model({ status, transcript,replayTrigger ,...props }) {
     loadSigns()
   }, [transcript, status, replayTrigger])
 
+  // --- 2. ANIMATION FRAME ---
   useFrame((state, delta) => {
     if (Object.keys(bones.current).length === 0) return
 
     const currentSignData = currentQueue[activeSignIndex]
+    // FIX: Allow animations to play if status is 'error'
+    const isPlaying = (status === 'success' || status === 'error') && currentSignData;
 
-    if (status === 'success' && currentSignData) {
+    if (isPlaying) {
       frameTimer.current += delta
-      
       const adaptiveDuration = currentSignData._isFingerspell ? 0.4 : FRAME_DURATION;
 
       if (frameTimer.current >= adaptiveDuration) {
         frameTimer.current = 0
-        
-        // Dynamic check for keyframe length (e.g., your JSON has 5)
-        const firstBoneInJson = Object.keys(currentSignData).find(key => !key.startsWith('_'));
-        const totalFrames = currentSignData[firstBoneInJson]?.keyframes.length || 0;
+        const firstBone = Object.keys(currentSignData).find(key => !key.startsWith('_'));
+        const totalFrames = currentSignData[firstBone]?.keyframes.length || 0;
 
         if (frameIndex.current < totalFrames - 1) {
           frameIndex.current++;
         } else {
           if (activeSignIndex < currentQueue.length - 1) {
-            // RESET INDEX FIRST
             frameIndex.current = 0; 
             setActiveSignIndex(prev => prev + 1);
           }
@@ -136,19 +127,13 @@ export function Model({ status, transcript,replayTrigger ,...props }) {
 
       const f = frameIndex.current
 
-      // Apply rotations only to bones present in BOTH the JSON and the Model
       Object.keys(currentSignData).forEach((boneName) => {
-        // 1. Skip our internal tags (like _isFingerspell)
         if (boneName.startsWith('_')) return;
-
         const bone = bones.current[boneName];
         const signBonesData = currentSignData[boneName];
         
-        // 2. Safety Gate: Check if the bone data and keyframes array actually exist
-        if (bone && signBonesData && signBonesData.keyframes) {
+        if (bone && signBonesData?.keyframes) {
           const kf = signBonesData.keyframes[f];
-          
-          // 3. Final Safety: Check if this specific keyframe exists
           if (kf) {
             bone.rotation.x = THREE.MathUtils.lerp(bone.rotation.x, kf[0] || 0, 0.15);
             bone.rotation.y = THREE.MathUtils.lerp(bone.rotation.y, kf[1] || 0, 0.15);
@@ -158,7 +143,7 @@ export function Model({ status, transcript,replayTrigger ,...props }) {
       });
 
     } else {
-      // Return to neutral pose smoothly for all finger and arm bones
+      // Smooth return to idle
       SIGNING_BONES.forEach((name) => {
         const bone = bones.current[name]
         if (bone) {

@@ -7,11 +7,15 @@ import {
   initSignSocket, 
   sendFrameBatch, 
   disconnectSocket,
-  finalizeSignSentence
+  finalizeSignSentence,
+  stopParallelGuard
 } from '../utils/utils';
 import { useOutletContext } from 'react-router-dom';
+import { startEmergencyGuard, stopEmergencyGuard } from '../utils/audioGuard'; 
+import { getSharedStream } from '../utils/utils';
 
 export const useDuoMode = () => {
+  const [emergencyAlert, setEmergencyAlert] = useState(null);
   const { selectedLang } = useOutletContext();
   const [liveText, setLiveText] = useState("");
   const [signerStatus, setSignerStatus] = useState('idle');
@@ -23,6 +27,7 @@ export const useDuoMode = () => {
   const [glossText, setGlossText] = useState("");
   const [replayTrigger, setReplayTrigger] = useState(0);
   const [activeMode, setActiveMode] = useState('alpha');
+  const [canvasKey, setCanvasKey] = useState(0);
   const isSocketReady = useRef(false);
   const videoRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -30,20 +35,77 @@ export const useDuoMode = () => {
   const streamRef = useRef(null);
   const frameBuffer = useRef([]);
 
-   const speakText = useCallback((text) => {
+  const emergencyHandlerRef = useRef(null);
+  const emergencyAlertRef = useRef(null);
+  emergencyAlertRef.current = emergencyAlert;
+
+  const handleEmergencyTrigger = useCallback((reason) => {
+    if (reason) {
+      setEmergencyAlert(reason);
+      setSignerStatus('idle');
+      setSpeakerStatus('idle');
+      disconnectSocket();
+      stopSpeechRecognition();
+
+      let emergencyGloss = "DANGER HELP";
+      const lower = reason.toLowerCase();
+      if (lower.includes("fire") || lower.includes("alarm") || lower.includes("smoke") || lower.includes("siren")) {
+        emergencyGloss = "FIRE OUTSIDE EXIT BUILDING NOW";
+      } else if (lower.includes("impact") || lower.includes("gunshot") || lower.includes("explosion") || lower.includes("bang")) {
+        emergencyGloss = "DANGER EXTREME HIDE STAY QUIET";
+      }
+      setGlossText(emergencyGloss);
+
+    } else {
+      // ✅ Full reset on dismiss + restart guard
+      setEmergencyAlert(null);
+      setCanvasKey(prev => prev + 1);
+      setSpeakerStatus('idle');
+      setSignerStatus('idle');
+      setReplayTrigger(prev => prev + 1);
+      setGlossText("");
+
+      // ✅ Restart guard after dismiss
+      getSharedStream().then(stream => {
+        startEmergencyGuard(stream, (reason, label) => {
+          if (label) return; // ignore heartbeat
+          emergencyHandlerRef.current(reason);
+        });
+      });
+    }
+  }, []);
+
+  // ✅ Keep ref updated
+  emergencyHandlerRef.current = handleEmergencyTrigger;
+
+  useEffect(() => {
+    let activeStream = null;
+    const initGuard = async () => {
+      try {
+        activeStream = await getSharedStream(); 
+        await startEmergencyGuard(activeStream, (reason, label) => {
+          if (label) return; // ✅ ignore heartbeat calls
+          emergencyHandlerRef.current(reason);
+        });
+      } catch (err) {
+        console.error("DuoMode Audio Guard Error:", err);
+      }
+    };
+
+    initGuard();
+    return () => {
+      stopEmergencyGuard();
+      stopParallelGuard();
+    };
+  }, []);
+
+  const speakText = useCallback((text) => {
     if (!text) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Map your codes to browser voices
     const langMap = {
-      'en': 'en-US',
-      'zu': 'zu-ZA',
-      'af': 'af-ZA',
-      'xh': 'xh-ZA',
-      'sn': 'sn-ZW'
+      'en': 'en-US', 'zu': 'zu-ZA', 'af': 'af-ZA', 'xh': 'xh-ZA', 'sn': 'sn-ZW'
     };
-    
     utterance.lang = langMap[selectedLang] || 'en-US';
     utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
@@ -55,24 +117,17 @@ export const useDuoMode = () => {
       isSocketReady.current = false;
 
       initSignSocket(activeMode, (result) => {
-        // --- A. NEW: HANDLE POLISHED LLM RESULT ---
         if (result.type === "final_result") {
           console.log("✨ DuoMode Polished Sentence:", result.data.translated);
           const translatedSentence = result.data.translated;
-          // Overwrite the messy glosses with the beautiful sentence
           setSignerText(translatedSentence); 
           setAccuracy(100);
-          
-          // Trigger TTS for the polished sentence automatically if you like
           speakText(translatedSentence);
-
-          // Now we are truly done
           setSignerStatus('idle');
           disconnectSocket();
           return;
         }
 
-        // --- B. EXISTING PREDICTION LOGIC ---
         isSocketReady.current = true;
 
         if (result.status === 'collecting') {
@@ -112,8 +167,8 @@ export const useDuoMode = () => {
         disconnectSocket();
       };
     }
-  }, [activeMode, signerStatus === 'idle',speakText]);
-
+  }, [activeMode, signerStatus === 'idle', speakText]);
+  
   // --- Frame Capture Logic ---
   const captureFrame = useCallback((frameCount = 20) => {
     if (!videoRef.current || !canvasRef.current || signerStatus !== 'recording' || !isSocketReady.current) return;
@@ -153,29 +208,26 @@ export const useDuoMode = () => {
     return () => streamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
 
-  // --- Text-to-Speech (TTS) ---
- 
-
   // --- Speaker Side Handlers (Mic, Input, Image) ---
   const handleToggleSpeakerMic = async () => {
-    // 1. STOP RECORDING CASE
+    if (emergencyAlertRef.current) return; // ✅ ref
+
     if (speakerStatus === 'recording') {
       stopSpeechRecognition();
+
+      const stream = await getSharedStream();
+      await startEmergencyGuard(stream, (reason, label) => {
+        if (label) return; // ✅ ignore heartbeat
+        emergencyHandlerRef.current(reason);
+      });
       
       if (liveText) {
-        // Show exactly what was said (e.g., "Unjani") in the UI
         setSpeakerText(liveText); 
         setSpeakerStatus('processing');
-        
         try {
-          // Translate the native speech into English Glosses for the Avatar
           const result = await processTextToSign(liveText, selectedLang);
-          
-          // This is what we pass to the XBot component
           setGlossText(result); 
           setSpeakerStatus('success');
-          
-          // Optional: Trigger text-to-speech so the user hears the confirmation
           speakText(liveText); 
         } catch (error) {
           console.error("Translation Error:", error);
@@ -184,63 +236,47 @@ export const useDuoMode = () => {
       } else {
         setSpeakerStatus('idle');
       }
-    } 
-    
-    // 2. START RECORDING CASE
-    else {
-      // Reset states for a fresh session
+    } else {
       setLiveText("");
       setGlossText("");
       setSpeakerText("");
       setSpeakerStatus('recording');
 
-      // Map your short codes (zu, sn) to browser locales (zu-ZA, sn-ZW)
+      await stopEmergencyGuard(); 
+      await stopParallelGuard(); 
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const langMap = {
-        'en': 'en-US',
-        'zu': 'zu-ZA',
-        'af': 'af-ZA',
-        'xh': 'xh-ZA',
-        'sn': 'sn-ZW'
+        'en': 'en-US', 'zu': 'zu-ZA', 'af': 'af-ZA', 'xh': 'xh-ZA', 'sn': 'sn-ZW'
       };
 
       try {
-        // This triggers the browser's native speech-to-text
         await startSpeechRecognition((text) => {
-          setLiveText(text); // Updates the "Listening..." text in the UI
+          setLiveText(text);
         }, langMap[selectedLang] || 'en-US'); 
-        
       } catch (error) {
         console.error("Mic Start Error:", error);
         setSpeakerStatus('error');
+        const stream = await getSharedStream();
+        startEmergencyGuard(stream, (reason, label) => {
+          if (label) return;
+          emergencyHandlerRef.current(reason);
+        });
       }
     }
   };
 
   const handleManualSend = async () => {
-    // 1. Validation: Don't send empty text
     if (!manualText.trim()) return;
-
     const textToProcess = manualText;
-    
-    // 2. UI Update: Show the typed word in the speaker's bubble
     setSpeakerText(textToProcess); 
-    setManualText(""); // Clear the input field for the next message
+    setManualText("");
     setSpeakerStatus('processing');
-
     try {
-      // 3. THE BRIDGE: Convert the typed native word into English Glosses
-      // result will be "HOW YOU" if you typed "Unjani"
       const result = await processTextToSign(textToProcess, selectedLang);
-      
-      // 4. XBOT UPDATE: Send only the English Gloss to the avatar
       setGlossText(result); 
       setSpeakerStatus('success');
-
-      // Optional: Make the computer speak the typed text aloud
-      if (typeof speakText === 'function') {
-        speakText(textToProcess);
-      }
-      
+      if (typeof speakText === 'function') speakText(textToProcess);
     } catch (error) {
       console.error("Manual Send Translation Error:", error);
       setSpeakerStatus('error');
@@ -256,6 +292,9 @@ export const useDuoMode = () => {
       const result = await processImageToSign(file);
       if (result) {
         setSpeakerText(result);
+        const translatedGlosses = await processTextToSign(result, selectedLang);
+        setGlossText(translatedGlosses); // ✅ update the gloss
+        setReplayTrigger(prev => prev + 1); // ✅ force XBot to re-animate
         setSpeakerStatus('idle');
       }
     } catch (error) {
@@ -309,8 +348,10 @@ export const useDuoMode = () => {
 
   return {
     state: { 
+      canvasKey,
       liveText, 
       signerStatus, 
+      emergencyAlert,
       glossText,
       accuracy, 
       signerText, 
@@ -318,7 +359,7 @@ export const useDuoMode = () => {
       speakerText, 
       manualText, 
       replayTrigger, 
-      activeMode 
+      activeMode
     },
     refs: { 
       videoRef, 
@@ -337,7 +378,9 @@ export const useDuoMode = () => {
       setActiveMode, 
       captureFrame,
       handleStopSigner,
-      handleModeChange
+      handleModeChange,
+      simulateFire: () => handleEmergencyTrigger("Manual Test: Fire Alarm Detected"),
+      resetSystem: () => handleEmergencyTrigger(null)
     }
   };
 };

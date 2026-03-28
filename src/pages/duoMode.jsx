@@ -8,13 +8,14 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import { Model as Xbot } from '../../XBot';
 import { useDuoMode } from '../hooks/useDuoMode'; 
+import EmergencyModal from '../components/emergencyModal'; // 1. IMPORT MODAL
 
 const DuoMode = () => {
   const navigate = useNavigate();
   const { isDarkMode } = useOutletContext(); 
   
   const { state, refs, actions } = useDuoMode();
-  const { activeMode,liveText,glossText ,signerStatus, signerText, speakerStatus, speakerText, manualText, replayTrigger,accuracy } = state;
+  const { activeMode,liveText,glossText ,signerStatus, signerText, speakerStatus, speakerText, manualText, replayTrigger,accuracy,emergencyAlert } = state;
   
   useEffect(() => {
     let interval;
@@ -36,6 +37,7 @@ const DuoMode = () => {
   ];
   // Restored Dynamic Border Logic
   const getSignerBorder = () => {
+    if (emergencyAlert) return 'border-red-600 animate-pulse scale-[0.98]'; // Squish effect
     switch (signerStatus) {
       case 'recording': return 'border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.15)]';
       case 'processing': return 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]';
@@ -56,6 +58,13 @@ const DuoMode = () => {
     <div className={`min-h-screen transition-colors duration-700 p-4 md:p-8 overflow-y-auto pb-40 ${
       isDarkMode ? 'bg-transparent text-slate-400' : 'bg-slate-50 text-slate-600'
     }`}>
+      {/* 3. RENDER THE EMERGENCY MODAL */}
+      <EmergencyModal 
+        isOpen={!!emergencyAlert} 
+        reason={emergencyAlert} 
+        transcript={glossText} // Pass the emergency glosses we set in the hook
+        onDismiss={actions.resetSystem} 
+      />
       <div className="max-w-[1400px] mx-auto flex flex-col gap-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           
@@ -182,14 +191,14 @@ const DuoMode = () => {
             </div>
 
             <div className={`relative aspect-video rounded-[2.5rem] overflow-hidden border-4 transition-all duration-500 shadow-2xl ${getSpeakerBorder()}`}>
-              <Canvas camera={{ position: [0, 1.5, 5], fov: 15 }} style={{ background: '#111827' }}>
+              <Canvas key={state.canvasKey} camera={{ position: [0, 1.5, 5], fov: 15 }} style={{ background: '#111827' }}>
                 <Suspense fallback={<Html center><Loader2 className="animate-spin text-blue-500" /></Html>}>
                   <ambientLight intensity={2} />
                   <pointLight position={[10, 10, 10]} intensity={5} />
                   <Xbot
                     scale={1}
                     position={[0, -1.2, 0]}
-                    status={speakerStatus === 'idle' ? 'success' : speakerStatus}
+                    status="success"
                     transcript={glossText} 
                     replayTrigger={replayTrigger} 
                   />
@@ -283,6 +292,16 @@ const DuoMode = () => {
 
         </div>
       </div>
+      {import.meta.env.MODE === 'development' && (
+        <div className="fixed bottom-4 right-4 z-[1000] flex gap-2">
+          <button 
+            onClick={actions.simulateFire}
+            className="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/50 rounded-full text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md"
+          >
+            🚨 Test Fire Alert
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -10,13 +10,14 @@ import {
 
 import { Model as Xbot } from '../../XBot';
 import { useSpeechToSign } from '../hooks/useSpeechToSign';
+import EmergencyModal from '../components/emergencyModal';
 
 const SpeechToSign = () => {
   const navigate = useNavigate();
   // We pull the selectedLang here to display it in the UI
   const { selectedLang } = useOutletContext(); 
   const { state, refs, actions } = useSpeechToSign();
-  const { status, transcript,originalText ,inputText, liveText, replayTrigger } = state;
+  const { status, transcript,originalText ,inputText, liveText, replayTrigger,emergencyAlert } = state;
 
   // Helper to get the full name of the language for the UI display
   const getLangName = (code) => {
@@ -25,6 +26,7 @@ const SpeechToSign = () => {
   };
 
   const getBorderColor = () => {
+    if (emergencyAlert) return 'border-red-500 animate-pulse shadow-[0_0_40px_rgba(239,68,68,0.3)]';
     switch (status) {
       case 'recording': return 'border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.2)]';
       case 'processing': return 'border-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.2)]';
@@ -36,6 +38,16 @@ const SpeechToSign = () => {
 
   return (
     <div className="min-h-screen bg-[#05070a] p-4 md:p-8">
+
+      {/* MODAL POPUP */}
+      <EmergencyModal 
+        isOpen={!!emergencyAlert} 
+        reason={emergencyAlert} 
+        transcript={transcript}
+        onDismiss={() => actions.setEmergencyAlert(null)} 
+      />
+
+      <div className={`transition-all duration-700 ${emergencyAlert ? 'blur-md scale-[0.98] opacity-60 pointer-events-none' : ''}`}>
       
       {/* TOP NAVIGATION BAR */}
       <div className="max-w-[1500px] mx-auto mb-8 flex items-center justify-between">
@@ -59,20 +71,47 @@ const SpeechToSign = () => {
         <div className="w-full lg:flex-[1.4] flex flex-col gap-6">
           <div className={`relative aspect-video lg:h-[55vh] rounded-[3rem] bg-[#111827] border-4 transition-all duration-500 overflow-hidden shadow-2xl ${getBorderColor()}`}>
             
-            <Canvas camera={{ position: [0, 1.5, 5], fov: 15 }}>
-              <Suspense fallback={<Html center><Loader2 className="animate-spin text-blue-500" /></Html>}>
-                <ambientLight intensity={2} /> 
-                <pointLight position={[10, 10, 10]} intensity={5} />
-                <Xbot 
-                  scale={1} 
-                  position={[0, -1.2, 0]}
-                  status={status}
-                  transcript={transcript}
-                  replayTrigger={replayTrigger}
-                />
-                <OrbitControls makeDefault />
-              </Suspense>
-            </Canvas>
+            {!emergencyAlert ? (
+              <Canvas camera={{ position: [0, 1.5, 5], fov: 15 }}>
+                <Suspense fallback={<Html center><Loader2 className="animate-spin text-blue-500" /></Html>}>
+                  <ambientLight intensity={2} /> 
+                  <pointLight position={[10, 10, 10]} intensity={5} />
+                  <Xbot 
+                    scale={1} 
+                    position={[0, -1.2, 0]}
+                    status={status}
+                    transcript={transcript}
+                    replayTrigger={replayTrigger}
+                  />
+                  <OrbitControls makeDefault />
+                </Suspense>
+              </Canvas>
+            ) : (
+              /* ✅ OPTIONAL: Show a "System Locked" message or just keep it dark behind the blur */
+              <div className="flex items-center justify-center h-full">
+                <span className="text-red-500/20 font-black text-4xl uppercase tracking-[0.5em]">Emergency active</span>
+              </div>
+            )}
+
+            {/* Badges */}
+            <div className="absolute top-8 left-8 flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${status === 'recording' || emergencyAlert ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
+                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                  {emergencyAlert ? 'EMERGENCY' : status === 'recording' ? 'LISTENING' : 'GUARD ACTIVE'}
+                </span>
+              </div>
+              
+              {/* NEW: LIVE SOUND LABEL */}
+              {!emergencyAlert && status !== 'recording' && (
+                <div className="flex items-center gap-2 px-2 py-1 bg-white/5 rounded-md border border-white/5">
+                  <Activity size={10} className="text-blue-400 animate-pulse" />
+                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">
+                    Environment: <span className="text-blue-400">{state.currentSound || "Analyzing..."}</span>
+                  </span>
+                </div>
+              )}
+            </div>
 
             {status === 'processing' && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-30">
@@ -193,6 +232,16 @@ const SpeechToSign = () => {
           </div>
         </div>
       </div>
+      </div>
+      {/* DEV ONLY: TRIGGER TEST EMERGENCY */}
+      {(import.meta.env.MODE === 'development' || process.env.NODE_ENV === 'development') && (
+        <button 
+          onClick={() => actions.setEmergencyAlert("Environmental Fire Alarm")}
+          className="fixed bottom-4 right-4 z-[500] p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-[10px] text-red-500 rounded-lg uppercase font-black opacity-60 hover:opacity-100 transition-all shadow-lg backdrop-blur-md"
+        >
+          🚨 Simulate Danger
+        </button>
+      )}
     </div>
   );
 };

@@ -1,16 +1,17 @@
 import Tesseract from 'tesseract.js';
+import * as tf from '@tensorflow/tfjs';
 
 /**
  * 1. Process Text/Speech to Sign (The Bridge to Python)
- * Now handles translating Native Languages to English Glosses.
+ * Handles local cleanup or remote Llama 3.3 translation.
  */
 export const processTextToSign = async (text, fromLang = 'en') => {
-  // If it's already English, we just clean it up locally
+  console.log(`Translating Text: "${text}" from ${fromLang} to Sign Language Glosses... utility.js`);
   if (fromLang === 'en') {
+    console.log("No translation needed, normalizing text for signing...");
     return text.replace(/[^a-zA-Z0-9\s]/g, "").trim().toUpperCase();
   }
 
-  // If it's Shona, Zulu, etc., we send it to our Python Backend for Llama 3.3 to Gloss
   try {
     const response = await fetch('http://127.0.0.1:8000/translate-speech', {
       method: 'POST',
@@ -22,10 +23,10 @@ export const processTextToSign = async (text, fromLang = 'en') => {
     });
     
     const data = await response.json();
-    return data.gloss; // Returns "WANT EAT MEAT"
+    return data.gloss; 
   } catch (error) {
     console.error("Translation Error:", error);
-    return text.toUpperCase(); // Fallback to raw text if backend is down
+    return text.toUpperCase(); 
   }
 };
 
@@ -47,15 +48,22 @@ export const processImageToSign = async (imageFile) => {
  */
 export const startSpeechRecognition = (onResult, langCode = 'en-US') => {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  
   if (!SpeechRecognition) {
     alert("Speech Recognition not supported in this browser.");
     return;
   }
 
+  if (window._recognition) {
+    window._recognition.stop();
+  }
+
   const recognition = new SpeechRecognition();
-  recognition.lang = langCode; // <--- Uses the code from the Dropdown (e.g., 'sn-ZW')
+  recognition.lang = langCode;
   recognition.continuous = true;
   recognition.interimResults = true;
+
+  recognition.onstart = () => console.log("🎙️ Speech Recognition Activated");
 
   recognition.onresult = (event) => {
     let finalTranscript = '';
@@ -65,23 +73,30 @@ export const startSpeechRecognition = (onResult, langCode = 'en-US') => {
     onResult(finalTranscript.trim()); 
   };
 
-  recognition.start();
-  window._recognition = recognition; 
+  recognition.onerror = (event) => console.error("Speech Recognition Error:", event.error);
+
+  try {
+    recognition.start();
+    window._recognition = recognition; 
+  } catch (e) {
+    console.error("Failed to start recognition:", e);
+  }
 };
 
 export const stopSpeechRecognition = () => {
   if (window._recognition) {
     window._recognition.stop();
+    window._recognition = null; 
   }
+  // NOTE: We no longer stop the sharedStream tracks here. 
+  // This allows YAMNet to immediately use the mic once Speech stops.
 };
 
 // --- WebSocket Utilities (Sign-to-Text) ---
-
 let socket = null;
 
 export const initSignSocket = (mode, onResult) => {
   if (socket) socket.close();
-
   socket = new WebSocket(`ws://localhost:8000/ws/translate/${mode}`);
   window._socket = socket;
   
@@ -91,13 +106,10 @@ export const initSignSocket = (mode, onResult) => {
   };
 
   socket.onopen = () => console.log(`🚀 Connected to AI Stream: ${mode}`);
-  socket.onerror = (err) => console.error("Socket Error:", err);
   socket.onclose = () => console.log("🔌 AI Stream Disconnected");
 };
 
 export const sendFrameBatch = (frames) => {
-  if (!frames || frames.length === 0) return;
-
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ frames: frames }));
   } 
@@ -105,16 +117,48 @@ export const sendFrameBatch = (frames) => {
 
 export const finalizeSignSentence = (text, lang) => {
   if (window._socket && window._socket.readyState === WebSocket.OPEN) {
-    const payload = {
+    window._socket.send(JSON.stringify({
       command: "FINALIZE_SENTENCE",
       history: text,
-      target_lang: lang // <--- Now uses the selected language for the output!
-    };
-    window._socket.send(JSON.stringify(payload));
+      target_lang: lang 
+    }));
   }
 };
 
-// Cleanup function for when component unmounts
-export const disconnectSocket = () => {
-  if (socket) socket.close();
+export const disconnectSocket = () => { if (socket) socket.close(); };
+
+// --- Audio & Guard Management ---
+let sharedStream = null;
+
+export const getSharedStream = async () => {
+  if (sharedStream && sharedStream.active) return sharedStream;
+
+  sharedStream = await navigator.mediaDevices.getUserMedia({ 
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false 
+    } 
+  });
+  return sharedStream;
+};
+
+/**
+ * REFINED FOR YAMNET:
+ * This now just ensures the stream is alive. 
+ * YAMNet's Tasks API handles its own AudioContext internally.
+ */
+export const startParallelGuard = async () => {
+  const stream = await getSharedStream();
+  console.log("🛡️ Shared Stream Warm for YAMNet");
+  return stream;
+};
+
+/**
+ * Stops any residual manual audio processing.
+ */
+export const stopParallelGuard = async () => {
+  // We clear tensors to ensure the GPU/RAM stays fresh during transitions
+  tf.disposeVariables(); 
+  console.log("🛑 Parallel Guard Logic Cleared");
 };
