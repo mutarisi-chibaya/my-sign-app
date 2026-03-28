@@ -158,7 +158,5 @@ export const startParallelGuard = async () => {
  * Stops any residual manual audio processing.
  */
 export const stopParallelGuard = async () => {
-  // We clear tensors to ensure the GPU/RAM stays fresh during transitions
-  tf.disposeVariables(); 
-  console.log("🛑 Parallel Guard Logic Cleared");
+  console.log("🛑 Parallel Guard transition skipped (guard stays active)");
 };

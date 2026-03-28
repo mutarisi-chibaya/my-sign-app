@@ -8,7 +8,7 @@ import {
   getSharedStream,
   stopParallelGuard
 } from '../utils/utils';
-import { startEmergencyGuard, stopEmergencyGuard } from '../utils/audioGuard'; 
+import { startEmergencyGuard, stopEmergencyGuard,resumeEmergencyGuard } from '../utils/audioGuard'; 
 
 export const useSpeechToSign = () => {
   const { selectedLang } = useOutletContext();
@@ -85,12 +85,7 @@ export const useSpeechToSign = () => {
       setStatus('idle');
       
       // ✅ Restart the guard after dismiss
-      getSharedStream().then(stream => {
-        startEmergencyGuard(stream, (reason, label) => {
-          if (label) { setCurrentSound(label); return; }
-          emergencyHandlerRef.current(reason);
-        });
-      });
+      resumeEmergencyGuard();
     }
   };
 
@@ -113,7 +108,8 @@ export const useSpeechToSign = () => {
     };
     initGuard();
     return () => {
-      stopEmergencyGuard();
+    
+      stopEmergencyGuard({ fullTeardown: true });
       stopParallelGuard();
     };
   }, []);
@@ -174,11 +170,7 @@ export const useSpeechToSign = () => {
       stopSpeechRecognition();
       
       // 2. RE-START EMERGENCY GUARD
-      const stream = await getSharedStream();
-      await startEmergencyGuard(stream, (reason, label) => {
-        if (label) { setCurrentSound(label); return; }
-        emergencyHandlerRef.current(reason);
-      });
+      
 
       if (liveText) {
         setOriginalText(liveText); 
@@ -192,8 +184,7 @@ export const useSpeechToSign = () => {
     } else {
       // 1. STOP EMERGENCY GUARD FIRST (CRITICAL)
       setStatus('recording');
-      await stopEmergencyGuard();
-      await stopParallelGuard();
+     
 
       // 2. START SPEECH RECOGNITION
       setLiveText(""); 

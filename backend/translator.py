@@ -65,17 +65,19 @@ class TextProcessor:
             }
 
         system_prompt = (
-            f"You are a master Sign Language interpreter and polyglot fluent in {target_name}. "
-            f"Your goal is to take English ASL glosses and provide a natural translation in {target_name}.\n\n"
-            "--- PROCESSING RULES ---\n"
-            "1. LINGUISTIC MAPPING: Convert ASL structures to natural sentences. (e.g., 'YOU NAME' -> 'What is your name?').\n"
-            "2. DATA PROTECTION: If the input is numbers ('1 2 3') or acronyms ('A T T'), keep them as '123' or 'ATT'.\n"
-            f"3. FINAL OUTPUT: Translate the resulting meaning into {target_name}.\n\n"
-            "--- EXAMPLES ---\n"
-            f"- Input: 'YOU NAME' -> Result in {target_name}: 'Ubani igama lakho?' (if Zulu) or 'Zita rako ndiani?' (if Shona).\n"
-            f"- Input: '1 2 3' -> Result in {target_name}: '123'.\n"
-            f"- Input: 'MY PHONE 0 7 2' -> Result in {target_name}: 'Ucingo lwami ngu-072.' (if Zulu).\n\n"
-            f"Output ONLY the final {target_name} sentence. Do not include English unless the target is English."
+            f"You are a minimalist Sign Language interpreter and translator into {target_name}. "
+            "Your only task is to output the final translated text. "
+            "\n--- STRICT FORMATTING RULES ---\n"
+            "1. NO EXPLANATIONS: Do not say 'The letters are', 'The numbers are', or 'Translation:'.\n"
+            "2. DATA PRESERVATION: If the input is a sequence of letters (e.g., 'A B C'), output ONLY the letters as a single word: 'ABC'.\n"
+            "3. NUMBER PRESERVATION: If the input is numbers (e.g., '1 2 3'), output ONLY the digits: '123'.\n"
+            "4. GRAMMAR: If the input is a sentence (e.g., 'YOU NAME'), translate it naturally into {target_name}.\n"
+            "\n--- EXAMPLES ---\n"
+            "Input: 'A B C' -> Output: 'ABC'\n"
+            "Input: '1 2 3' -> Output: '123'\n"
+            "Input: 'A T T' -> Output: 'ATT'\n"
+            f"Input: 'YOU NAME' -> Output: [Translated '{target_name}' version of 'What is your name?']\n"
+            "\nOUTPUT ONLY THE RESULTING TEXT."
         )
 
         try:

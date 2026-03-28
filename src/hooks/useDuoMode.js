@@ -11,7 +11,7 @@ import {
   stopParallelGuard
 } from '../utils/utils';
 import { useOutletContext } from 'react-router-dom';
-import { startEmergencyGuard, stopEmergencyGuard } from '../utils/audioGuard'; 
+import { startEmergencyGuard, stopEmergencyGuard,resumeEmergencyGuard } from '../utils/audioGuard'; 
 import { getSharedStream } from '../utils/utils';
 
 export const useDuoMode = () => {
@@ -65,13 +65,8 @@ export const useDuoMode = () => {
       setReplayTrigger(prev => prev + 1);
       setGlossText("");
 
-      // ✅ Restart guard after dismiss
-      getSharedStream().then(stream => {
-        startEmergencyGuard(stream, (reason, label) => {
-          if (label) return; // ignore heartbeat
-          emergencyHandlerRef.current(reason);
-        });
-      });
+    
+      resumeEmergencyGuard();
     }
   }, []);
 
@@ -79,25 +74,24 @@ export const useDuoMode = () => {
   emergencyHandlerRef.current = handleEmergencyTrigger;
 
   useEffect(() => {
-    let activeStream = null;
-    const initGuard = async () => {
-      try {
-        activeStream = await getSharedStream(); 
-        await startEmergencyGuard(activeStream, (reason, label) => {
-          if (label) return; // ✅ ignore heartbeat calls
-          emergencyHandlerRef.current(reason);
-        });
-      } catch (err) {
-        console.error("DuoMode Audio Guard Error:", err);
-      }
-    };
+  const initGuard = async () => {
+    try {
+      const activeStream = await getSharedStream();  // ← add const here
+      await startEmergencyGuard(activeStream, (reason, label) => {
+        if (label) return;
+        emergencyHandlerRef.current(reason);
+      });
+    } catch (err) {
+      console.error("DuoMode Audio Guard Error:", err);
+    }
+  };
 
-    initGuard();
-    return () => {
-      stopEmergencyGuard();
-      stopParallelGuard();
-    };
-  }, []);
+  initGuard();
+  return () => {
+    stopEmergencyGuard({ fullTeardown: true });
+    stopParallelGuard();
+  };
+}, []);
 
   const speakText = useCallback((text) => {
     if (!text) return;
@@ -215,12 +209,6 @@ export const useDuoMode = () => {
     if (speakerStatus === 'recording') {
       stopSpeechRecognition();
 
-      const stream = await getSharedStream();
-      await startEmergencyGuard(stream, (reason, label) => {
-        if (label) return; // ✅ ignore heartbeat
-        emergencyHandlerRef.current(reason);
-      });
-      
       if (liveText) {
         setSpeakerText(liveText); 
         setSpeakerStatus('processing');
@@ -242,26 +230,17 @@ export const useDuoMode = () => {
       setSpeakerText("");
       setSpeakerStatus('recording');
 
-      await stopEmergencyGuard(); 
-      await stopParallelGuard(); 
-      await new Promise(resolve => setTimeout(resolve, 100));
-
       const langMap = {
         'en': 'en-US', 'zu': 'zu-ZA', 'af': 'af-ZA', 'xh': 'xh-ZA', 'sn': 'sn-ZW'
       };
 
       try {
-        await startSpeechRecognition((text) => {
+        startSpeechRecognition((text) => {
           setLiveText(text);
         }, langMap[selectedLang] || 'en-US'); 
       } catch (error) {
         console.error("Mic Start Error:", error);
         setSpeakerStatus('error');
-        const stream = await getSharedStream();
-        startEmergencyGuard(stream, (reason, label) => {
-          if (label) return;
-          emergencyHandlerRef.current(reason);
-        });
       }
     }
   };
