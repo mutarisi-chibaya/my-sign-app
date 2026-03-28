@@ -5,7 +5,7 @@ import { OrbitControls, Html } from '@react-three/drei';
 import { 
   Mic, MicOff, Volume2, Loader2, Activity, 
   Lightbulb, Send, Image as ImageIcon, 
-  RotateCcw, ArrowLeft,Trash2,Circle 
+  RotateCcw, ArrowLeft,Trash2,Circle,Square
 } from 'lucide-react';
 
 import { Model as Xbot } from '../../XBot';
