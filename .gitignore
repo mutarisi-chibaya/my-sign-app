@@ -25,7 +25,7 @@ dist-ssr
 
 # Ignore large data files
 training/data
-backend/models
+
 data
 
 # Ignore python environment/cache

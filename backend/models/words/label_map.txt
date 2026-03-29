@@ -1,0 +1,9 @@
+0,fine
+1,good
+2,goodbye
+3,hello
+4,how are you
+5,me
+6,name
+7,thank you
+8,you
