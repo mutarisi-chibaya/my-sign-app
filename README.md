@@ -1,16 +1,28 @@
-# React + Vite
+1. Backend Setup (Python)
+Navigate to the backend directory and set up your environment:
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+cd backend
 
-Currently, two official plugins are available:
+# Install dependencies
+pip install -r requirements.txt
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+2. Environment Configuration
+Create a .env file in the backend/ directory and add your credentials:
 
-## React Compiler
+# backend/.env
+GROQ_API_KEY=your_groq_api_key_here
+PORT=8000
+HOST=127.0.0.1
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## Expanding the ESLint configuration
+Running the Application
+To get the full system running, you will need two terminal windows:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+first npm install in root directory
+
+Terminal 1:
+npm run dev
+
+Terminal 2:
+cd backend
+uvicorn lynkSign:app --host 0.0.0.0 --port 8000 --reload
