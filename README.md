@@ -12,6 +12,14 @@ in the root directory
 # Install dependencies
 pip install -r requirements.txt
 
+2. Environment Configuration
+Create a .env file in the backend/ directory and add your credentials:
+
+# backend/.env
+GROQ_API_KEY=your_groq_api_key_here
+PORT=8000
+HOST=127.0.0.1
+
 
 Running the Application
 To get the full system running, you will need two terminal windows:
