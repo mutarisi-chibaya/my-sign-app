@@ -96,10 +96,11 @@ export const stopSpeechRecognition = () => {
 
 // --- WebSocket Utilities (Sign-to-Text) ---
 let socket = null;
+let hfSocket = null;
 
 export const initSignSocket = (mode, onResult) => {
   if (socket) socket.close();
-  socket = new WebSocket(`wss://mutarisi-lynksign.hf.space/ws/translate/${mode}`);
+  socket = new WebSocket(`ws://localhost:8000/ws/translate/${mode}`);
   window._socket = socket;
   
   socket.onmessage = (event) => {
@@ -118,16 +119,33 @@ export const sendFrameBatch = (frames) => {
 };
 
 export const finalizeSignSentence = (text, lang) => {
-  if (window._socket && window._socket.readyState === WebSocket.OPEN) {
-    window._socket.send(JSON.stringify({
+  // Open a fresh HF socket just for finalization
+  if (hfSocket) hfSocket.close();
+  hfSocket = new WebSocket(`wss://mutarisi-lynksign.hf.space/ws/translate/finalize`);
+  
+  hfSocket.onopen = () => {
+    hfSocket.send(JSON.stringify({
       command: "FINALIZE_SENTENCE",
       history: text,
       target_lang: lang 
     }));
-  }
+  };
+
+  hfSocket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    // Route the final_result back through the main socket's onmessage handler
+    if (window._socket && window._socket.onmessage) {
+      window._socket.onmessage({ data: JSON.stringify(data) });
+    }
+  };
+
+  hfSocket.onerror = (err) => console.error("HF Finalize Error:", err);
 };
 
-export const disconnectSocket = () => { if (socket) socket.close(); };
+export const disconnectSocket = () => { 
+  if (socket) socket.close(); 
+  if (hfSocket) hfSocket.close();
+};
 
 // --- Audio & Guard Management ---
 let sharedStream = null;
