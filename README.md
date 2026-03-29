@@ -1,7 +1,13 @@
-1. Backend Setup (Python)
-Navigate to the backend directory and set up your environment:
+To ensure the AI models and 3D rendering engine run correctly, please verify your environment matches these versions:
 
-cd backend
+Python 3.11.0: Required for compatibility with tensorflow==2.19.0 and mediapipe.
+
+Node.js v24.11.1: Required for the React frontend and @react-three/fiber animations.
+
+Git LFS (Large File Storage): CRITICAL. You must have Git LFS installed to pull the actual Keras (.keras / .h5) model files. Without this, Git will only download small "pointer" files, and the backend will fail to load the model.
+
+1. Backend Setup (Python)
+in the root directory
 
 # Install dependencies
 pip install -r requirements.txt
@@ -10,7 +16,7 @@ pip install -r requirements.txt
 Create a .env file in the backend/ directory and add your credentials:
 
 # backend/.env
-GROQ_API_KEY=your_groq_api_key_here
+GROQ_API_KEY= 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
 PORT=8000
 HOST=127.0.0.1
 
