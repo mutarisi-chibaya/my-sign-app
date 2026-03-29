@@ -162,16 +162,23 @@ const SpeechToSign = () => {
           </div>
           <div className="flex flex-row items-center justify-center gap-4">
             <button 
-             
               onClick={actions.handleToggleMic} 
-              
-              className={`flex items-center gap-4 px-10 py-5 rounded-full font-black transition-all shadow-xl ${
-                  status === 'recording' ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-600 text-white hover:bg-blue-500'
-                }`}
+              disabled={status === 'processing'} // Prevent clicks while the AI is thinking
+              className={`flex items-center gap-4 px-10 py-5 rounded-full font-black transition-all shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+                status === 'recording' 
+                  ? 'bg-red-500 text-white animate-pulse shadow-red-500/20' 
+                  : 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-500/20'
+              }`}
             >
-              {status !== 'idle' ? <Square size={18} fill="currentColor" /> : <Circle size={18} />}
+              {/* Switch icon based specifically on recording state */}
+              {status === 'recording' ? (
+                <Square size={18} fill="currentColor" />
+              ) : (
+                <Circle size={18} />
+              )}
+
               <span className="tracking-[0.2em] text-xs uppercase">
-                {status !== 'idle' ? "Stop Session" : "Start Live Stream"}
+                {status === 'recording' ? "Stop Session" : "Start Live Stream"}
               </span>
             </button>
 
