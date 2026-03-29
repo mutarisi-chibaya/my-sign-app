@@ -1,0 +1,17 @@
+fastapi==0.135.2
+groq==1.1.2
+mediapipe==0.10.21
+numpy==2.4.4
+opencv_contrib_python==4.11.0.86
+opencv_python==4.11.0.86
+opencv_python_headless==4.11.0.86
+pandas==3.0.1
+Pillow==12.1.1
+pydantic==2.12.5
+python-dotenv==1.2.2
+scikit_learn==1.8.0
+tensorflow==2.19.0
+torch==2.8.0
+tqdm==4.67.1
+transformers==4.56.2
+uvicorn==0.42.0
