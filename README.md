@@ -20,6 +20,8 @@ GROQ_API_KEY=your_groq_api_key_here
 PORT=8000
 HOST=127.0.0.1
 
+the key will be in the zip sentences
+
 
 Running the Application
 To get the full system running, you will need two terminal windows:
