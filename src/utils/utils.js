@@ -1,6 +1,8 @@
 import Tesseract from 'tesseract.js';
 import * as tf from '@tensorflow/tfjs';
 
+const HF_BASE = "https://mutarisi-lynksign.hf.space";
+
 /**
  * 1. Process Text/Speech to Sign (The Bridge to Python)
  * Handles local cleanup or remote Llama 3.3 translation.
@@ -13,7 +15,7 @@ export const processTextToSign = async (text, fromLang = 'en') => {
   }
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/translate-speech', {
+    const response = await fetch(`${HF_BASE}/translate-speech`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -97,7 +99,7 @@ let socket = null;
 
 export const initSignSocket = (mode, onResult) => {
   if (socket) socket.close();
-  socket = new WebSocket(`ws://localhost:8000/ws/translate/${mode}`);
+  socket = new WebSocket(`wss://mutarisi-lynksign.hf.space/ws/translate/${mode}`);
   window._socket = socket;
   
   socket.onmessage = (event) => {

@@ -20,8 +20,10 @@ GROQ_API_KEY=your_groq_api_key_here
 PORT=8000
 HOST=127.0.0.1
 
-the key will be in the zip sentences
-
+NOTE: The GROQ_API_KEY is only needed locally for development. In production,
+the LLM translation service runs on Hugging Face Spaces at:
+https://mutarisi-lynksign.hf.space
+No API key setup is required on the frontend — it calls HF directly.
 
 Running the Application
 To get the full system running, you will need two terminal windows:
@@ -34,3 +36,8 @@ npm run dev
 Terminal 2:
 cd backend
 uvicorn lynkSign:app --host 0.0.0.0 --port 8000 --reload
+
+NOTE: The local backend handles CV/MediaPipe frame processing only.
+LLM translation (text-to-gloss and sign finalization) is handled by
+the Hugging Face Space and does not require the local backend to have
+a Groq key.
