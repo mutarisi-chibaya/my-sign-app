@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # --- 1. INITIALIZATION ---
 load_dotenv()
 app = FastAPI(title="LynkSign AI Core")
-GROQ_KEY = os.getenv("GROQ_API_KEY")
+GROQ_KEY = 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
 
 # --- 2. CORS SETUP ---
 # Ensures your React frontend (usually port 3000) can talk to this FastAPI server
