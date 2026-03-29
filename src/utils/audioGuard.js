@@ -57,7 +57,7 @@ const runDetectLoop = () => {
       const maxIdx = scoresArray.indexOf(Math.max(...scoresArray));
       const topScore = scoresArray[maxIdx];
       const topLabel = yamnetClasses[maxIdx] || 'Unknown';
-
+      
       // Update live heartbeat UI
       onDetectionCallback(null, topLabel);
 
