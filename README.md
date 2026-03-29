@@ -41,3 +41,4 @@ NOTE: The local backend handles CV/MediaPipe frame processing only.
 LLM translation (text-to-gloss and sign finalization) is handled by
 the Hugging Face Space and does not require the local backend to have
 a Groq key.
+After some time hugging face will shutdown the space due to inactivity. If you see a "503 Service Unavailable" error, please wait a few minutes and refresh the frontend. The space will automatically wake up and start working again.
